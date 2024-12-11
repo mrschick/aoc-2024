@@ -3,6 +3,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <time.h>
 #include <string.h>
 #include <regex.h>
@@ -32,36 +33,51 @@ int main(int argc, char *argv[]) {
 	regmatch_t matches[3];
 	int regexReturn;
 
-	unsigned int totalSum = 0, currentPosition = 0;
-	short a = 0, b = 0;
+	bool enabled = true;
+	unsigned int totalSumPart1 = 0, totalSumPart2 = 0, currentPosition = 0, product = 0, a = 0, b = 0;
 	char buffer[SINGLE_CHAR];
 	char command[COMMAND_LENGTH];
 	while (!feof(inputFile)) {
 		// Read new line from file
 		if (fgets(buffer, SINGLE_CHAR, inputFile) == NULL) break;
 
-		// Skip to next Char until the pattern's first Char is found
-		if (strcmp(buffer, "m") != 0) continue;
-		currentPosition = ftell(inputFile);
-		fseek(inputFile, -1, SEEK_CUR);
+		if (strcmp(buffer, "d") == 0) {
+			// Found possible do()/don't() instruction
+			currentPosition = ftell(inputFile);
+			fseek(inputFile, -1, SEEK_CUR);
 
-		// Check for "mul(a,b)" pattern
-		fgets(command, COMMAND_LENGTH, inputFile);
-		//printf("Testing input: %s\n", command);
-		regexReturn = regexec(&regex, command, 3, matches, 0);
-		if (regexReturn == 0) {
-			a = atoi(command + matches[1].rm_so);
-			b = atoi(command + matches[2].rm_so);
-			//printf("Matched items, a: %d, b: %d\n", a, b);
-			totalSum += (a * b);
+			fgets(command, COMMAND_LENGTH, inputFile);
+			if (strstr(command, "do()") != NULL) {
+				enabled = true;
+			} else if (strstr(command, "don't()") != NULL) {
+				enabled = false;
+			}
+
+			fseek(inputFile, currentPosition, SEEK_SET); // Return FP to after found "m"/"d", to avoid skipping nearby valid records
+		} else if (strcmp(buffer, "m") == 0) {
+			// Found possible mul(a,b) instruction
+			currentPosition = ftell(inputFile);
+			fseek(inputFile, -1, SEEK_CUR);
+
+			// Check for "mul(a,b)" pattern via Regex
+			fgets(command, COMMAND_LENGTH, inputFile);
+			regexReturn = regexec(&regex, command, 3, matches, 0);
+			if (regexReturn == 0) {
+				a = atoi(command + matches[1].rm_so);
+				b = atoi(command + matches[2].rm_so);
+				product = (a * b);
+				totalSumPart1 += product;
+				if (enabled) totalSumPart2 += product;
+			}
+			fseek(inputFile, currentPosition, SEEK_SET); // Return FP to after found "m"/"d", to avoid skipping nearby valid records
 		}
-		fseek(inputFile, currentPosition, SEEK_SET); // Return FP to after found "m", to avoid skipping nearby valid records
 	}
 
 	regfree(&regex);
 	fclose(inputFile);
 
-	printf("Final sum of all mul(a,b) operations: %u\n", totalSum);
+	printf("Part 1 - sum of all mul(a,b) operations: %u\n", totalSumPart1);
+	printf("Part 2 - sum of ENABLED mul(a,b) operations: %u\n", totalSumPart2);
 
 	timeEnd = clock();
 	printf("\nTotal Execution Time: %f\n", ((double)timeEnd-timeStart)/CLOCKS_PER_MS);
